@@ -171,6 +171,8 @@ def process_frame(frame):
         frame = black_frame()
         print_text_to_frame(frame, "Hello there")
 
+    print(f"HR: {horiz_ratio} |  VR: {verti_ratio}")
+
     return frame
 
 
