@@ -2,8 +2,8 @@ import numpy as np
 import cv2
 
 # Frame options
-GAZE_TRACKING_ENABLED = True
-CALIBRATION_ENABLED = True
+GAZE_TRACKING_ENABLED = False
+CALIBRATION_ENABLED = False
 SHOW_TEXT_MESSAGE = False
 SHOW_EYE_POSITIONS = True
 SHOW_GAZE_POSITION = True
@@ -250,7 +250,7 @@ if __name__ == '__main__':
     configure_camera()
 
     # Calibrate gaze
-    if (CALIBRATION_ENABLED):
+    if (GAZE_TRACKING_ENABLED and CALIBRATION_ENABLED):
         while (not calibrate_gaze()):
             pass
 
