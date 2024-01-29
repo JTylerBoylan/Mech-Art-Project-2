@@ -140,7 +140,7 @@ def process_frame(frame):
         return frame
     
     # Show eye positions
-    if (SHOW_EYE_POSITIONS):
+    if SHOW_EYE_POSITIONS:
         frame = gaze.annotated_frame()
     
     # Get gaze ratios
@@ -155,14 +155,15 @@ def process_frame(frame):
     (horiz_ratio, verti_ratio) = apply_ratio_filter(horiz_ratio, verti_ratio)
 
     # Adjust the ratio based on the calibration
-    (horiz_ratio, verti_ratio) = get_adjusted_ratio(horiz_ratio, verti_ratio)
+    if CALIBRATION_ENABLED:
+        (horiz_ratio, verti_ratio) = get_adjusted_ratio(horiz_ratio, verti_ratio)
 
     # Show gaze location
-    if (SHOW_GAZE_POSITION):
+    if SHOW_GAZE_POSITION:
         frame = show_gaze_location(frame, horiz_ratio, verti_ratio)
 
     # Show calibration points
-    if (SHOW_CALIBRATION_POINTS):
+    if SHOW_CALIBRATION_POINTS:
         frame = show_calibration_points(frame)
 
     # If the user is gazing at the center, show the message
