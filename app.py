@@ -2,11 +2,11 @@ import numpy as np
 import cv2
 
 # Frame options
-GAZE_TRACKING_ENABLED = True
+GAZE_TRACKING_ENABLED = False
 CALIBRATION_ENABLED = False
 SHOW_TEXT_MESSAGE = False
 SHOW_EYE_POSITIONS = True
-SHOW_GAZE_POSITION = True
+SHOW_GAZE_POSITION = False
 SHOW_CALIBRATION_POINTS = False
 
 ############################
@@ -17,68 +17,26 @@ from gaze_tracking import GazeTracking
 gaze = GazeTracking()
 
 # Gaze calibration
-center_ratio = None
-horiz_ratio_range = None
-verti_ratio_range = None
-def calibrate_gaze():
-    directions = ["center", "left", "right", "up", "down"]
-    num_samples = 10  # Number of samples to take for each direction
-    ratios = {"horizontal": {}, "vertical": {}}
+horiz_ratio_range = [1.0, 0.0]
+verti_ratio_range = [1.0, 0.0]
+def calibrate_gaze(horiz_ratio, verti_ratio):
+    global horiz_ratio_range, verti_ratio_range
 
-    for direction in directions:
-        horiz_ratios = []
-        verti_ratios = []
+    if horiz_ratio < horiz_ratio_range[0]:
+        horiz_ratio_range[0] = horiz_ratio
+    if horiz_ratio > horiz_ratio_range[1]:
+        horiz_ratio_range[1] = horiz_ratio
+    if verti_ratio < verti_ratio_range[0]:
+        verti_ratio_range[0] = verti_ratio
+    if  verti_ratio > verti_ratio_range[1]:
+        verti_ratio_range[1] = verti_ratio
 
-        print("----------------------------------------")
-        input(f"Look {direction} and press Enter.")
-        for _ in range(num_samples):
-            frame = picam2.capture_array()
-            gaze.refresh(frame)
+    if horiz_ratio_range[0] != horiz_ratio_range[1]:
+        horiz_ratio = (horiz_ratio - horiz_ratio_range[0]) / (horiz_ratio_range[1] - horiz_ratio_range[0])
 
-            horiz_ratio = gaze.horizontal_ratio()
-            verti_ratio = gaze.vertical_ratio()
-
-            if horiz_ratio is not None and verti_ratio is not None:
-                horiz_ratios.append(horiz_ratio)
-                verti_ratios.append(verti_ratio)
-
-        # Calculate the average ratio for each direction
-        if horiz_ratios and verti_ratios:
-            ratios["horizontal"][direction] = sum(horiz_ratios) / len(horiz_ratios)
-            ratios["vertical"][direction] = sum(verti_ratios) / len(verti_ratios)
-        else:
-            print(f"Gaze not properly detected for {direction}. Please retry.")
-            return False 
-
-    print("----------------------------------------")
-
-    global center_ratio, horiz_ratio_range, verti_ratio_range
-
-    # Calculate the normalized center ratio
-    center_ratio = (ratios["horizontal"]["center"], ratios["vertical"]["center"])
-
-    # Calculate scale factors based on extreme points
-    horiz_ratio_range = (ratios["horizontal"]["right"], ratios["horizontal"]["left"])
-    verti_ratio_range = (ratios["vertical"]["up"], ratios["vertical"]["down"])
-
-    print("------------ CALIBRATION ------------")
-    print(f"Center: {center_ratio}")
-    print(f"Horizontal range: {horiz_ratio_range}")
-    print(f"Vertical range: {verti_ratio_range}")
-    print("-------------------------------------")
-
-    return True
-
-# Adjust the ratio based on the calibration
-def get_adjusted_ratio(horiz_ratio, verti_ratio):
-    def adjust_ratio(ratio, range, center):
-        if ratio < center:
-            return 0.5 * (ratio - range[0]) / (center - range[0])
-        else:
-            return 0.5 * (ratio - center) / (range[1] - center) + 0.5
-
-    horiz_ratio = adjust_ratio(horiz_ratio, horiz_ratio_range, center_ratio[0])
-    verti_ratio = adjust_ratio(verti_ratio, verti_ratio_range, center_ratio[1])
+    if verti_ratio_range[0] != verti_ratio_range[1]:
+        verti_ratio = (verti_ratio - verti_ratio_range[0]) / (verti_ratio_range[1] - verti_ratio_range[0])
+    
     return horiz_ratio, verti_ratio
 
 # Check if the user is looking at the center
@@ -96,7 +54,7 @@ def is_looking_center(horiz_ratio, verti_ratio):
 # Apply low pass filter to the ratio
 horiz_ratio_filtered = 0.5
 verti_ratio_filtered = 0.5
-filter_size = 5
+filter_size = 2
 def apply_ratio_filter(horiz_ratio, verti_ratio):
     global horiz_ratio_filtered, verti_ratio_filtered
     horiz_ratio_filtered = (horiz_ratio_filtered * filter_size + horiz_ratio) / (filter_size + 1)
@@ -124,14 +82,17 @@ def show_gaze_location(frame, horiz_ratio, verti_ratio, radius=10):
 
 # Show calibration points
 def show_calibration_points(frame):
-    frame = show_gaze_location(frame, center_ratio[0], center_ratio[1], 5)
-    frame = show_gaze_location(frame, horiz_ratio_range[0], center_ratio[1], 5)
-    frame = show_gaze_location(frame, horiz_ratio_range[1], center_ratio[1], 5)
-    frame = show_gaze_location(frame, center_ratio[0], verti_ratio_range[0], 5)
-    frame = show_gaze_location(frame, center_ratio[0], verti_ratio_range[1], 5)
+    frame = show_gaze_location(frame, horiz_ratio_range[0], verti_ratio_range[0], radius=5)
+    frame = show_gaze_location(frame, horiz_ratio_range[0], verti_ratio_range[1], radius=5)
+    frame = show_gaze_location(frame, horiz_ratio_range[1], verti_ratio_range[0], radius=5)
+    frame = show_gaze_location(frame, horiz_ratio_range[1], verti_ratio_range[1], radius=5)
     return frame
 
 def process_frame(frame):
+
+    if not GAZE_TRACKING_ENABLED:
+        return frame
+
     # Run gaze detection
     try:
         gaze.refresh(frame)
@@ -152,22 +113,22 @@ def process_frame(frame):
         return frame
 
     # Apply low pass filter
-    (horiz_ratio, verti_ratio) = apply_ratio_filter(horiz_ratio, verti_ratio)
+    horiz_ratio, verti_ratio = apply_ratio_filter(horiz_ratio, verti_ratio)
 
-    # Adjust the ratio based on the calibration
+    # Calibrate ratios
     if CALIBRATION_ENABLED:
-        (horiz_ratio, verti_ratio) = get_adjusted_ratio(horiz_ratio, verti_ratio)
-
-    # Show gaze location
-    if SHOW_GAZE_POSITION:
-        frame = show_gaze_location(frame, horiz_ratio, verti_ratio)
+        horiz_ratio, verti_ratio = calibrate_gaze(horiz_ratio, verti_ratio)
 
     # Show calibration points
     if SHOW_CALIBRATION_POINTS:
         frame = show_calibration_points(frame)
 
+    # Show gaze location
+    if SHOW_GAZE_POSITION:
+        frame = show_gaze_location(frame, horiz_ratio, verti_ratio)
+
     # If the user is gazing at the center, show the message
-    if is_looking_center(horiz_ratio, verti_ratio) and SHOW_TEXT_MESSAGE:
+    if SHOW_TEXT_MESSAGE and is_looking_center(horiz_ratio, verti_ratio):
         frame = black_frame()
         print_text_to_frame(frame, "Hello there")
 
@@ -233,8 +194,7 @@ def gen_frames():
     while True:
         frame = picam2.capture_array()
 
-        if (GAZE_TRACKING_ENABLED):
-            frame = process_frame(frame)
+        frame = process_frame(frame)
 
         _, buffer = cv2.imencode('.jpg', frame, [int(cv2.IMWRITE_JPEG_QUALITY), 80])
         frame = buffer.tobytes()
@@ -251,11 +211,6 @@ if __name__ == '__main__':
 
     # Configure camera
     configure_camera()
-
-    # Calibrate gaze
-    if (GAZE_TRACKING_ENABLED and CALIBRATION_ENABLED):
-        while (not calibrate_gaze()):
-            pass
 
     # Run the web application
     app.run(host='0.0.0.0', port=5000)
