@@ -2,12 +2,12 @@ import numpy as np
 import cv2
 
 # Frame options
-GAZE_TRACKING_ENABLED = False
+GAZE_TRACKING_ENABLED = True
 CALIBRATION_ENABLED = False
 SHOW_TEXT_MESSAGE = False
 SHOW_EYE_POSITIONS = True
 SHOW_GAZE_POSITION = True
-SHOW_CALIBRATION_POINTS = True
+SHOW_CALIBRATION_POINTS = False
 
 ############################
 ## GAZETRACKING FUNCTIONS ##
