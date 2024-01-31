@@ -2,10 +2,10 @@ import numpy as np
 import cv2
 
 # Frame options
-GAZE_TRACKING_ENABLED = False
+GAZE_TRACKING_ENABLED = True
 CALIBRATION_ENABLED = False
 SHOW_TEXT_MESSAGE = False
-SHOW_EYE_POSITIONS = False
+SHOW_EYE_POSITIONS = True
 SHOW_GAZE_POSITION = False
 SHOW_CALIBRATION_POINTS = False
 
@@ -93,6 +93,8 @@ def process_frame(frame):
     if not GAZE_TRACKING_ENABLED:
         return frame
 
+    frame= cv2.resize(frame, (640, 480))
+
     # Run gaze detection
     try:
         gaze.refresh(frame)
@@ -145,8 +147,8 @@ from picamera2 import Picamera2
 
 picam2 = Picamera2()
 
-image_width = 640
-image_height = 480
+image_width = 1640
+image_height = 1232
 def configure_camera():
     config = picam2.create_video_configuration(main={"format": "RGB888", "size": (image_width, image_height)})
     picam2.configure(config)
