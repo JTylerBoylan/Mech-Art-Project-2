@@ -1,14 +1,15 @@
 import numpy as np
 import cv2
-import time
+import random
 
 # Frame options
 GAZE_TRACKING_ENABLED = True
-CALIBRATION_ENABLED = False
-SHOW_TEXT_MESSAGE = False
+CALIBRATION_ENABLED = True
+SHOW_TEXT_MESSAGE = True
 SHOW_EYE_POSITIONS = True
-SHOW_GAZE_POSITION = False
-SHOW_CALIBRATION_POINTS = False
+SHOW_GAZE_POSITION = True
+SHOW_CALIBRATION_POINTS = True
+COVER_EYES = False
 
 #########################
 ## CAMERA FUNCTIONS ##
@@ -32,20 +33,25 @@ gaze = GazeTracking()
 # Gaze calibration
 center_point = (0.5, 0.5)
 num_samples = 50
-def calibrate_gaze(horiz_ratio, verti_ratio):
+def calibrate_gaze():
     global center_point
-    input("Look at the center of the screen. Press Enter to continue...")
+    input("Look at the center. Press Enter to continue...")
 
     # Get the average gaze ratio
     horiz_ratio_sum = 0
     verti_ratio_sum = 0
-    for _ in range(num_samples):
+    sample = 0
+    while sample < num_samples:
         success, frame = cap.read()
         if success:
             try:
                 gaze.refresh(frame)
-                horiz_ratio_sum += gaze.horizontal_ratio()
-                verti_ratio_sum += gaze.vertical_ratio()
+                horiz_ratio = gaze.horizontal_ratio()
+                verti_ratio = gaze.vertical_ratio()
+                if (horiz_ratio is not None) and (verti_ratio is not None):
+                    horiz_ratio_sum += horiz_ratio
+                    verti_ratio_sum += verti_ratio
+                    sample += 1
             except:
                 print("Gaze refresh error. Skipping frame.")
     
@@ -57,18 +63,20 @@ def calibrate_gaze(horiz_ratio, verti_ratio):
 
 
 # Check if the user is looking at the center
-is_center_gaze = False
-enter_threshold = 0.125  # Enter center gaze if ratio difference is less than this
-exit_threshold = 0.25   # Exit center gaze if ratio difference is more than this
-def is_looking_center(horiz_ratio, verti_ratio):
-    global is_center_gaze
-    horiz_delta = abs(horiz_ratio - center_point[0])
-    verti_delta = abs(verti_ratio - center_point[1])
-    if horiz_delta < enter_threshold and verti_delta < enter_threshold:
-        is_center_gaze = True
-    elif horiz_delta > exit_threshold or verti_delta > exit_threshold:
-        is_center_gaze = False
-    return is_center_gaze
+looking_down = False
+random_int = 0
+enter_threshold = 0.25  # Enter center gaze if ratio difference is less than this
+exit_threshold = 0.125   # Exit center gaze if ratio difference is more than this
+def is_looking_down(verti_ratio):
+    global looking_down, random_int
+    verti_delta = verti_ratio - center_point[1]
+    if verti_delta > enter_threshold:
+        if looking_down is not True:
+            random_int = random.randint(0, 1000)
+        looking_down = True
+    elif verti_delta < exit_threshold:
+        looking_down = False
+    return looking_down
 
 # Apply low pass filter to the ratio
 horiz_ratio_filtered = 0.5
@@ -85,7 +93,31 @@ def black_frame():
     return np.zeros((image_height, image_width, 3), dtype=np.uint8)
 
 # Print text to the center of the frame
-def print_text_to_frame(frame, text):
+phrases = [
+    "Hello there",
+    "I see you",
+    "What's up?",
+    "My eyes are up here",
+    "Caught you looking!",
+    "Hey, over here!",
+    "Eye contact, please",
+    "Trying to hide, huh?",
+    "Focus, focus!",
+    "Looking sharp, but listen too",
+    "Eyes front, please",
+    "Are we playing peek-a-boo?",
+    "This is not a mirror!",
+    "Oh, hello self-observer",
+    "Got distracted?",
+    "Look at me when I'm talking",
+    "Admiring the view?",
+    "This isn’t a photoshoot",
+    "Stop the screen stare",
+    "Your attention, please",
+    ":("
+]
+def print_phrase_to_frame(frame, phrase=0):
+    text = phrases[phrase % len(phrases)]
     font = cv2.FONT_HERSHEY_SIMPLEX
     text_size = cv2.getTextSize(text, font, 1, 2)[0]
     text_x = (frame.shape[1] - text_size[0]) // 2
@@ -97,6 +129,13 @@ def show_gaze_location(frame, horiz_ratio, verti_ratio, radius=10, color=(0, 255
     x = int(horiz_ratio * frame.shape[1])
     y = int(verti_ratio * frame.shape[0])
     cv2.circle(frame, (x, y), radius, color, 2)
+    return frame
+
+def draw_circles_around_eyes(frame, eye_location_left, eye_location_right):
+    if eye_location_left is not None:
+        cv2.circle(frame, eye_location_left, 5, (0, 0, 255), 20)
+    if eye_location_right is not None:
+        cv2.circle(frame, eye_location_right, 5, (0, 0, 255), 20)
     return frame
 
 # Show calibration points
@@ -133,10 +172,6 @@ def process_frame(frame):
     # Apply low pass filter
     horiz_ratio, verti_ratio = apply_ratio_filter(horiz_ratio, verti_ratio)
 
-    # Calibrate ratios
-    if CALIBRATION_ENABLED:
-        horiz_ratio, verti_ratio = calibrate_gaze(horiz_ratio, verti_ratio)
-
     # Show calibration points
     if SHOW_CALIBRATION_POINTS:
         frame = show_calibration_points(frame)
@@ -145,10 +180,16 @@ def process_frame(frame):
     if SHOW_GAZE_POSITION:
         frame = show_gaze_location(frame, horiz_ratio, verti_ratio)
 
+    # Get eye locations
+    if COVER_EYES:
+        eye_location_left = gaze.pupil_left_coords()
+        eye_location_right = gaze.pupil_right_coords()
+        frame = draw_circles_around_eyes(frame, eye_location_left=eye_location_left, eye_location_right=eye_location_right)
+
     # If the user is gazing at the center, show the message
-    if SHOW_TEXT_MESSAGE and is_looking_center(horiz_ratio, verti_ratio):
+    if SHOW_TEXT_MESSAGE and is_looking_down(verti_ratio):
         frame = black_frame()
-        print_text_to_frame(frame, "Hello there")
+        print_phrase_to_frame(frame, phrase=random_int)
 
     print(f"HR: {horiz_ratio} |  VR: {verti_ratio}")
 
@@ -217,6 +258,10 @@ if __name__ == '__main__':
 
     # Configure camera
     configure_camera()
+
+    # Calibrate gaze
+    if CALIBRATION_ENABLED:
+        calibrate_gaze()
 
     # Run the web application
     app.run(host='0.0.0.0', port=5000)
