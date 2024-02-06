@@ -6,9 +6,9 @@ import random
 GAZE_TRACKING_ENABLED = True
 CALIBRATION_ENABLED = True
 SHOW_TEXT_MESSAGE = True
-SHOW_EYE_POSITIONS = True
-SHOW_GAZE_POSITION = True
-SHOW_CALIBRATION_POINTS = True
+SHOW_EYE_POSITIONS = False
+SHOW_GAZE_POSITION = False
+SHOW_CALIBRATION_POINTS = False
 COVER_EYES = False
 
 #########################
@@ -32,7 +32,7 @@ gaze = GazeTracking()
 
 # Gaze calibration
 center_point = (0.5, 0.5)
-num_samples = 50
+num_samples = 25
 def calibrate_gaze():
     global center_point
     input("Look at the center. Press Enter to continue...")
@@ -76,12 +76,13 @@ def is_looking_down(verti_ratio):
         looking_down = True
     elif verti_delta < exit_threshold:
         looking_down = False
+    print(looking_down, int(verti_delta * 100))
     return looking_down
 
 # Apply low pass filter to the ratio
 horiz_ratio_filtered = 0.5
 verti_ratio_filtered = 0.5
-filter_size = 2
+filter_size = 3
 def apply_ratio_filter(horiz_ratio, verti_ratio):
     global horiz_ratio_filtered, verti_ratio_filtered
     horiz_ratio_filtered = (horiz_ratio_filtered * filter_size + horiz_ratio) / (filter_size + 1)
@@ -111,7 +112,7 @@ phrases = [
     "Got distracted?",
     "Look at me when I'm talking",
     "Admiring the view?",
-    "This isn’t a photoshoot",
+    "This isn't a photoshoot",
     "Stop the screen stare",
     "Your attention, please",
     ":("
@@ -123,6 +124,7 @@ def print_phrase_to_frame(frame, phrase=0):
     text_x = (frame.shape[1] - text_size[0]) // 2
     text_y = (frame.shape[0] + text_size[1]) // 2
     cv2.putText(frame, text, (text_x, text_y), font, 1, (255, 255, 255), 2)
+    return frame
 
 # Show gaze location
 def show_gaze_location(frame, horiz_ratio, verti_ratio, radius=10, color=(0, 255, 0)):
@@ -148,7 +150,7 @@ def process_frame(frame):
     if not GAZE_TRACKING_ENABLED:
         return frame
 
-    frame= cv2.resize(frame, (640, 480))
+    frame = cv2.resize(frame, (640, 480))
 
     # Run gaze detection
     try:
@@ -189,9 +191,9 @@ def process_frame(frame):
     # If the user is gazing at the center, show the message
     if SHOW_TEXT_MESSAGE and is_looking_down(verti_ratio):
         frame = black_frame()
-        print_phrase_to_frame(frame, phrase=random_int)
+        frame = print_phrase_to_frame(frame, phrase=random_int)
 
-    print(f"HR: {horiz_ratio} |  VR: {verti_ratio}")
+    # print(f"HR: {horiz_ratio} |  VR: {verti_ratio}")
 
     return frame
     
@@ -224,8 +226,13 @@ def index():
             }
         </style>
     </head>
-    <body>
+    <body onclick="refreshPage()">
         <img src="/video_feed">
+        <script>
+            function refreshPage() {
+                window.location.reload();
+            }
+        </script>
     </body>
     </html>
     """)
